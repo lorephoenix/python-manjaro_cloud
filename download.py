@@ -12,7 +12,7 @@
 Manjaro ISO Downloader
 ----------------------
 This script automates the process of downloading the latest Manjaro Linux ISO
-for your system architecture (x86_64 or ARM64).
+for your system architecture (x86_64).
 
 Features:
     - Detects system architecture
@@ -20,6 +20,9 @@ Features:
     - Verifies download directory and URL reachability
     - Supports checksum verification and minimal images
     - Provides configurable logging verbosity
+
+Usage:
+    python download.py --environment xfce --machine arm64 --verbose
 """
 
 # =====================================================
@@ -58,7 +61,7 @@ import requests
 # Constants
 # =====================================================
 LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
-MANJARO_URL: Final[str] = "https://manjaro.org/products/download/"
+MANJARO_URL: Final[str] = "https://manjaro.org/products/download/x86"
 
 
 # =====================================================
@@ -71,10 +74,10 @@ class SelectiveBlankLineFormatter(argparse.ArgumentDefaultsHelpFormatter):
     """
 
     def add_argument(self, action):
-        # Only inject a blank line before the "--checksum" argument
+        # Only inject a blank line before the "--digest" argument
         if (
             hasattr(action, "option_strings")
-            and "--checksum" in action.option_strings
+            and "--digest" in action.option_strings
         ):
             # Must pass a lambda that takes *no* arguments
             self._add_item(lambda: "\n", [])
@@ -105,7 +108,6 @@ class Download:
     and environment.
 
     Features:
-        - Auto-detects architecture
         - Validates URLs
         - Fetches latest ISO link dynamically
         - Supports checksum and minimal images
@@ -140,6 +142,8 @@ class Download:
                                 (default: False).
                 - minimal (bool): Download minimal image
                                   (default: False).
+                - no_verify_ssl (bool): Disable SSL verification
+                                        (default: False).
                 - selected_machine (str): Machine architecture
                                           (default: platform.machine()).
                 - target_dir (str): Target directory
@@ -155,17 +159,22 @@ class Download:
         # -----------------------
         # Initialization
         # -----------------------
-        self.checksum: str = kwargs.get("checksum", "sha256")
+        self.auto: bool = kwargs.get("auto", False)
+        self.digest: str = kwargs.get("digest", "sha256")
         self.dry_run: bool = kwargs.get("dry_run", False)
-        self.environment: str = kwargs.get("environment", "xfce")
+        self.environment: str = kwargs.get("environment", "kde")
         self.force: bool = kwargs.get("force", False)
         self.minimal: bool = kwargs.get("minimal", False)
+        self.no_verify_ssl: bool = kwargs.get("no_verify_ssl", False)
         self.selected_machine: str = kwargs.get(
             "selected_machine",
             platform.machine()
         )
         self.target_dir: str = kwargs.get("target_dir", os.getcwd())
         self.verbose: int = kwargs.get("verbose", 0)
+        self.verify: bool = (
+            self.no_verify_ssl if self.no_verify_ssl else certifi.where()
+        )
 
         # -----------------------
         # Internal state
@@ -187,6 +196,9 @@ class Download:
             logger.debug(f"Python version: {platform.python_version()}")
             logger.debug(f"Executable path: {sys.executable}")
 
+            if self.verify:
+                logger.debug(f"--no_verfy_ssl: enabled")
+
         # -----------------------
         # Execution Flow
         # -----------------------
@@ -198,7 +210,7 @@ class Download:
         # 💡 Fetch and verify both ISO and checksum URLs
         self.iso_url: str = self._check_url_file(latest_url, "ISO")
         self.checksum_url: str = self._check_url_file(
-            f"{self.iso_url}.{self.checksum}",
+            f"{self.iso_url}.{self.digest}",
             "checksum"
         )
 
@@ -207,6 +219,17 @@ class Download:
         self.iso_image: str = self._get_iso_image()
         self.iso_version = self._get_iso_version()
 
+        if self.auto:
+            # Cleanup & Download
+            self.remove_checksum()
+            self.remove_image()
+            self.download_checksum()
+            self.download_image()
+
+            # Validate
+            if not self.validate_checksum():
+                logger.error("Downloaded ISO failed checksum validation!")
+                sys.exit(1)
 
     # Ｐｒｏｔｅｃｔｅｄ  ｍｅｔｈｏｄｓ
 
@@ -263,7 +286,7 @@ class Download:
                 self.url,
                 timeout=timeout,
                 allow_redirects=True,
-                verify=certifi.where()
+                verify=self.verify
             )
 
             if response.status_code >= 400 or response.status_code < 100:
@@ -271,7 +294,7 @@ class Download:
                     self.url,
                     timeout=timeout,
                     allow_redirects=True,
-                    verify=certifi.where()
+                    verify=self.verify
                 )
 
             logger.success(f"The URL is reachable: {self.url}")
@@ -307,7 +330,7 @@ class Download:
                 url,
                 allow_redirects=True,
                 timeout=timeout,
-                verify=certifi.where()
+                verify=self.verify
             )
 
             # Some servers may not allow HEAD requests → fallback to GET
@@ -317,7 +340,7 @@ class Download:
                     url,
                     stream=True,
                     timeout=timeout,
-                    verify=certifi.where()
+                    verify=self.verify
                 )
 
             # Check if the server confirms the file's presence (2xx or
@@ -345,10 +368,8 @@ class Download:
         Raises:
             SystemExit: If the architecture is unsupported.
         """
-        if self._is_arm():
-            self.url = f"{MANJARO_URL}arm"
-        elif self._is_x86():
-            self.url = f"{MANJARO_URL}x86"
+        if self._is_x86():
+            self.url = f"{MANJARO_URL}"
         else:
             logger.error(
                 f"Unsupported architecture: '{self.selected_machine}'. "
@@ -356,15 +377,6 @@ class Download:
             )
             sys.exit(1)
         logger.debug(f"Configured download URL: {self.url}")
-
-    def _is_arm(self) -> bool:
-        """
-        Check if the selected machine is ARM-based.
-
-        Returns:
-            bool: True if the machine is ARM64/aarch64, False otherwise.
-        """
-        return self.selected_machine.lower() in ("arm64", "aarch64")
 
     def _is_x86(self) -> bool:
         """
@@ -380,11 +392,8 @@ class Download:
     # =====================================================
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(
-            multiplier=1,
-            min=4,
-            max=10
-        )
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        reraise=True
     )
     def _download_file(self, url: str, description: str) -> None:
         """
@@ -417,7 +426,7 @@ class Download:
             response = requests.get(
                 url,
                 stream=True,
-                verify=certifi.where()
+                verify=self.verify
             )
             response.raise_for_status()
             with file_path.open("wb") as handle:
@@ -449,7 +458,7 @@ class Download:
         """
         url_pattern: str = 'href="(.*?)"'
         filter_value: Pattern = re.compile(
-            rf".*/(manjaro-{self.environment}-.*.iso)$"
+            rf".*/([Mm]anjaro-.*{self.environment}-.*(.iso|.img.xz))$"
         )
 
         # Randomize User-Agent to avoid blocking
@@ -466,7 +475,7 @@ class Download:
             response = requests.get(
                 self.url,
                 headers=headers,
-                verify=certifi.where()
+                verify=self.verify
             )
             response.raise_for_status()
         except requests.exceptions.RequestException as err:
@@ -484,7 +493,6 @@ class Download:
         # Return the latest ISO (sorted in reverse order)
         filtered .sort(reverse=True)
         latest_iso = sorted(filtered, reverse=True)[0]
-        logger.trace(f"Found latest ISO URL: {latest_iso}")
 
         if self.minimal:
             pattern: str = r'(manjaro-[^-]+-\d+\.\d+\.\d+)-'
@@ -617,9 +625,9 @@ class Download:
         Returns:
             bool: True if checksum matches, False otherwise.
         """
-        algo = getattr(hashlib, self.checksum, None)
+        algo = getattr(hashlib, self.digest, None)
         if not algo:
-            logger.error(f"Unsupported checksum algorithm: {self.checksum}")
+            logger.error(f"Unsupported checksum algorithm: {self.digest}")
             return False
 
         iso_path = Path(self.target_dir) / self.iso_image
@@ -764,15 +772,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         formatter_class=SelectiveBlankLineFormatter,
         description="""Download the latest Manjaro ISO for your architecture.
-Supported environments: xfce, kde, gnome.
-Supported architectures: x86_64, arm64.""",
+\nSupported environments: xfce, kde, gnome.
+\nSupported architectures: Only x86_64.""",
+    )
+
+    parser.add_argument(
+        "-a",
+        "--auto",
+        action="store_true",
+        default=True,
+        help=f"Specify a Desktop Environment."
     )
 
     parser.add_argument(
         "-e",
         "--environment",
         type=str,
-        default="xfce",
+        default="kde",
         help=f"Specify a Desktop Environment."
     )
 
@@ -784,28 +800,20 @@ Supported architectures: x86_64, arm64.""",
     )
 
     parser.add_argument(
-        "-m",
-        "--machine",
-        type=str,
-        default=machine_arch,
-        help="Specify machine hardware"
-    )
-
-    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
         default=0,
-        help="""Increase output verbosity. Use multiple times for more detail 
+        help="""Increase output verbosity. Use multiple times for more detail
 (e.g., -vvv)."""
     )
 
     parser.add_argument(
-        "--checksum",
+        "--digest",
         type=str,
         default="sha256",
-        help="""A cryptographic hash value (e.g., MD5, SHA-1, or SHA-256) used 
-to verify the integrity and authenticity of a fileSpecify a checksum hash 
+        help="""A cryptographic hash value (e.g., MD5, SHA-1, or SHA-256) used
+to verify the integrity and authenticity of a fileSpecify a checksum hash
 value."""
     )
 
@@ -818,7 +826,13 @@ value."""
     parser.add_argument(
         "--minimal",
         action="store_true",
-        help="Download the minimal image."
+        help="Download the minimal ISO image (smaller size, fewer packages)."
+    )
+
+    parser.add_argument(
+        "--no_verify_ssl",
+        action="store_true",
+        help="Disable SSL verification (not recommended for production).",
     )
 
     parser.add_argument(
@@ -840,28 +854,19 @@ value."""
         logger.trace(f"Current script file: {current_file}")
 
     # Initialize Download
-    download = Download(
+    Download(
         **{
             "verbose": args.verbose,
-            "checksum": args.checksum,
+            "auto": args.auto,
+            "digest": args.digest,
             "dry_run": args.dry_run,
             "environment": args.environment,
             "force": args.force,
             "minimal": args.minimal,
-            "selected_machine": args.machine,
+            "no-verify-ssl": args.no_verify_ssl,
+            "selected_machine": machine_arch,
             "target_dir": args.target_dir
         })
-
-    # Cleanup & Download
-    download.remove_checksum()
-    download.remove_image()
-    download.download_checksum()
-    download.download_image()
-
-    # Validate
-    if not download.validate_checksum():
-        logger.error("Downloaded ISO failed checksum validation!")
-        sys.exit(1)
 
 
 # ====================================
