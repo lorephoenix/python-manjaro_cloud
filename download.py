@@ -8,6 +8,8 @@
 # Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
 
+from __future__ import annotations
+
 """
 Manjaro ISO Downloader
 ----------------------
@@ -30,8 +32,6 @@ Usage:
 # =====================================================
 # Standard library imports
 # =====================================================
-from __future__ import annotations
-
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
