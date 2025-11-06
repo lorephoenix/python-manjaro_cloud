@@ -226,6 +226,12 @@ class Download:
         '''
         return str(self.__class__) + ": " + str(self.__dict__)
 
+    # p r o t e c t e d   me t h o d s
+    #
+    # The underscore (_) signals to other developers that this method is
+    # intended for internal use within the class or its subclasses. It is not
+    # meant to be accessed directly from outside the class.
+
     def _check_dir(self) -> None:
         """Check if the target directory exists."""
         if not self.config.target_dir.is_dir():
@@ -318,16 +324,6 @@ class Download:
             f"Class instance attribute '_checksum_file': "
             f"{self._checksum_file}")
 
-    def download(self) -> None:
-        """Download ISO and (optionally) checksum files."""
-        if self.config.dry_run:
-            logger.info("[DRY RUN] Would download ISO and checksum files.")
-            return
-
-        self._download_file(self._iso_url, "ISO")
-        if not self.config.skip_digest:
-            self._download_file(self._checksum_url, "checksum")
-
     def _download_file(self, url: str, description: str) -> None:
         """
         Download a remote file with progress bar.
@@ -363,6 +359,21 @@ class Download:
         except requests.exceptions.RequestException as err:
             raise NetworkError(
                 f"Failed to download {description}: {err}") from err
+
+    # p u b l i c   me t h o d s
+    #
+    # It does not start with an underscore (_), which means it is intended to
+    # be part of the public API of the Download class.
+
+    def download(self) -> None:
+        """Download ISO and (optionally) checksum files."""
+        if self.config.dry_run:
+            logger.info("[DRY RUN] Would download ISO and checksum files.")
+            return
+
+        self._download_file(self._iso_url, "ISO")
+        if not self.config.skip_digest:
+            self._download_file(self._checksum_url, "checksum")
 
     def validate_checksum(self) -> bool:
         """
