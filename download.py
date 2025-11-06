@@ -24,7 +24,7 @@ Features:
     - Retry logic for network operations
 
 Usage:
-    python download.py --environment xfce --machine arm64 --verbose
+    python download.py --environment xfce --minimal -vv
 """
 
 # =====================================================
