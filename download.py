@@ -417,10 +417,38 @@ class Download:
         else:
             raise ChecksumError("Checksum verification failed.")
 
+    # P r o p e r t i e s
+    #
+    # A property is a special kind of class attribute that lets you control
+    # access to an internal variable — typically to encapsulate logic around
+    # getting, setting, or deleting its value
+
+    @property
+    def iso_image(self) -> Optional[str]:
+        """Get the ISO image filename."""
+        return self._iso_image
+
+    @iso_image.setter
+    def iso_image(self, value: Optional[str]) -> None:
+        """Set the ISO image filename."""
+        self._iso_image = value
+
+    @property
+    def iso_version(self) -> Optional[str]:
+        """Get the ISO version."""
+        return self._iso_version
+
+    @iso_version.setter
+    def iso_version(self, value: Optional[str]) -> None:
+        """Set the ISO version."""
+        self._iso_version = value
+
 
 # =====================================================
 # Logging Configuration
 # =====================================================
+
+
 def configure_logging(verbosity: int) -> None:
     """
     Configure loguru logging levels dynamically based on verbosity.
