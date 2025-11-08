@@ -456,7 +456,7 @@ def configure_logging(verbosity: int) -> None:
     log_format = (
         "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
         "<level>{level: <8}</level> | "
-        "<cyan>{function}</cyan> - "
+        "<cyan>{file}{function}</cyan> - "
         "<level>{message}</level>"
     )
 
