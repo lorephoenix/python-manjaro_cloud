@@ -223,7 +223,7 @@ class Download:
         '''
         return str(self.__class__) + ": " + str(self.__dict__)
 
-    # p r o t e c t e d   me t h o d s
+    # p r o t e c t e d   m e t h o d s
     #
     # The underscore (_) signals to other developers that this method is
     # intended for internal use within the class or its subclasses. It is not
