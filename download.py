@@ -192,9 +192,6 @@ class Download:
         if sys.platform == "win32":
             colorama.init()
 
-        logger.debug(f"Platform: {platform.system()} {platform.release()}")
-        logger.debug(f"Python version: {platform.python_version()}")
-        logger.debug(f"Executable path: {sys.executable}")
         logger.trace(self)
 
         # =====================================================
@@ -550,6 +547,9 @@ value."""
 
     # --- Initialize Logging --------------------------------------------------
     configure_logging(args.verbose)
+    logger.debug(f"Platform: {platform.system()} {platform.release()}")
+    logger.debug(f"Python version: {platform.python_version()}")
+    logger.debug(f"Executable path: {sys.executable}")
 
     # --- Assemble Config -----------------------------------------------------
     config = DownloadConfig(
