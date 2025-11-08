@@ -167,7 +167,7 @@ class Download:
         _checksum_file (Optional[str]): Name of the checksum file.
     """
 
-    # d u n d e r   me t h o d s
+    # d u n d e r   m e t h o d s
     #
     # Methods with double underscores (e.g., __str__, __init__, __repr__) are
     # called "dunder" methods (short for "double underscore"). These are
@@ -357,7 +357,7 @@ class Download:
             raise NetworkError(
                 f"Failed to download {description}: {err}") from err
 
-    # p u b l i c   me t h o d s
+    # p u b l i c   m e t h o d s
     #
     # It does not start with an underscore (_), which means it is intended to
     # be part of the public API of the Download class.
