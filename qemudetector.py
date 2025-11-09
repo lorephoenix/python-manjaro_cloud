@@ -121,7 +121,8 @@ class LogBufferHandler:
 # =====================================================
 # Data Model
 # =====================================================
-# Prevents dynamic attribute assignment, memory-efficient
+# slots=True Prevents dynamic attribute assignment, memory-efficient
+# frozen=True Makes the instances of the class immutable after creation.
 @dataclass(slots=True, frozen=True)
 class QemuConfig:
     """
