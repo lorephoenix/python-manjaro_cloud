@@ -3,7 +3,7 @@
 #
 # File              : qemudetector.py
 # Date              : 2025-11-08 09:55:21
-# Last Modified time: 2025-11-09 17:16:21
+# Last Modified time: 2025-11-09 17:27:14
 #
 # Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
@@ -36,6 +36,9 @@ import colorama
 LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
 
 
+# =====================================================
+# Enumerations
+# =====================================================
 class OSType(Enum):
     """Enumeration of supported operating system types."""
     ARCH = auto()
@@ -49,7 +52,9 @@ class OSType(Enum):
     UNKNOWN = auto()
 
 
-# OS-specific commands for package management and checks
+# =====================================================
+# OS Command Map
+# =====================================================
 OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
     OSType.ARCH: {
         "install": "sudo pacman -S --noconfirm ",
@@ -149,7 +154,7 @@ class QemuDetector:
     # representation, object initialization, etc. They are part of Python's
     # data model and are always public.
 
-    def __init__(self, config: PackageConfig) -> None:
+    def __init__(self, config: QemuConfig) -> None:
         """
         Initialize the QemuDetector and detect the OS.
 
