@@ -3,7 +3,7 @@
 #
 # File              : qemudetector.py
 # Date              : 2025-11-08 09:55:21
-# Last Modified time: 2025-11-08 16:14:47
+# Last Modified time: 2025-11-09 17:16:21
 #
 # Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
@@ -15,7 +15,8 @@ from __future__ import annotations
 # =====================================================
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set, Tuple
+from enum import Enum, auto
+from typing import Any, Dict, List, Optional, Set, Tuple
 import argparse
 import platform
 import shutil
@@ -33,6 +34,70 @@ import colorama
 # Constants
 # =====================================================
 LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
+
+
+class OSType(Enum):
+    """Enumeration of supported operating system types."""
+    ARCH = auto()
+    DEBIAN = auto()
+    FEDORA = auto()
+    GENTOO = auto()
+    RHEL = auto()
+    SUSE = auto()
+    WINDOWS = auto()
+    MACOS = auto()
+    UNKNOWN = auto()
+
+
+# OS-specific commands for package management and checks
+OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
+    OSType.ARCH: {
+        "install": "sudo pacman -S --noconfirm ",
+        "check": {
+            "qemu-img": "qemu-img",
+            "qemu-system-x86_64": "qemu-system-x86",
+        },
+    },
+    OSType.DEBIAN: {
+        "install": "sudo apt install -y ",
+        "check": {
+            "qemu-img": "qemu-utils",
+            "qemu-system-x86_64": "qemu-system-x86",
+        },
+    },
+    OSType.FEDORA: {
+        "install": "sudo dnf install -y ",
+        "check": {
+            "qemu-img": "qemu-img",
+            "qemu-system-x86_64": "qemu",
+        },
+    },
+    OSType.GENTOO: {
+        "install": "sudo emerge ",
+        "check": {
+            "qemu-img": "app-emulation/qemu",
+            "qemu-system-x86_64": "app-emulation/qemu",
+        },
+    },
+    OSType.RHEL: {
+        "install": "sudo dnf install -y ",
+        "note": (
+            "Create manually a symbol link:\n  "
+            "ln -s /usr/libexec/qemu-kvm /usr/bin/qemu-system-x86_64."
+        ),
+        "check": {
+            "qemu-img": "qemu-img",
+            "qemu-system-x86_64": "qemu-kvm",
+        },
+    },
+    OSType.SUSE: {
+        "install": "sudo zypper install -y ",
+        "check": {
+            "qemu-img": "qemu-img",
+            "qemu-system-x86_64": "qemu",
+        },
+    },
+}
 
 
 # =====================================================
@@ -57,7 +122,7 @@ class LogBufferHandler:
 # Data Model
 # =====================================================
 # Prevents dynamic attribute assignment, memory-efficient
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class QemuConfig:
     """
     Configuration options for QEMU detection and verification.
@@ -66,7 +131,6 @@ class QemuConfig:
         os_info (Optional[str]): Detected operating system identifier.
         verbose (int): Verbosity level (0–3).
     """
-    os_info: Optional[str] = None
     verbose: int = 0
 
 
@@ -92,10 +156,10 @@ class QemuDetector:
             config (QemuConfig): Configuration object.
         """
         self.config = config
-        self.config.os_info: str = self._detect_os()
-        self.commands: Dict[str, Dict[str, str]] = self._get_commands()
+        self._os_info: OSType = self._detect_os()
+        self.commands: Dict[str, Any] = self._get_commands()
 
-        logger.info(f"Detected OS: {self.config.os_info}")
+        logger.info(f"Detected OS: {self.os_info}")
         logger.trace(self)
         self.check_commands()
 
@@ -105,6 +169,17 @@ class QemuDetector:
             an object.
         '''
         return str(self.__class__) + ": " + str(self.__dict__)
+
+    # P r o p e r t i e s
+    #
+    # A property is a special kind of class attribute that lets you control
+    # access to an internal variable — typically to encapsulate logic around
+    # getting, setting, or deleting its value
+
+    @property
+    def os_info(self) -> OSType:
+        """Return the detected OS type."""
+        return self._os_info
 
     # p r o t e c t e d   m e t h o d s
     #
@@ -131,7 +206,7 @@ class QemuDetector:
     # --------------------------------------------------
     # OS Detection
     # --------------------------------------------------
-    def _detect_os(self) -> str:
+    def _detect_os(self) -> OSType:
         """
         Detect the host operating system.
 
@@ -145,17 +220,27 @@ class QemuDetector:
         system: str = platform.system().lower()
 
         if system == "windows":
-            return "windows"
+            return OSType.WINDOWS
+
+        if system == "darwin":
+            return OSType.MACOS
 
         if system == "linux":
             os_release: Dict[str, str] = self._get_os_release()
-            distro: str = os_release.get("ID_LIKE", "").lower()
-            if not distro:
-                distro = os_release.get("ID", "").lower()
-            return distro
+            major_distro: str = os_release.get("ID", "").lower()
 
-        # Fallback for macOS, BSD, etc.
-        return system
+            for os_type in OSType:
+                if os_type.name.lower() == major_distro:
+                    return os_type
+
+            distro: str = os_release.get("ID_LIKE", "").lower()
+
+            if distro:
+                for os_type in OSType:
+                    if os_type.name.lower() in distro.split()[0]:
+                        return os_type
+
+        return OSType.UNKNOWN
 
     # --------------------------------------------------
     # Command Registry
@@ -167,44 +252,7 @@ class QemuDetector:
         Returns:
             Dict[str, Dict[str, str]]: OS-specific command mapping.
         """
-        os_commands = {
-            "arch": {
-                "install": "sudo pacman -S --noconfirm ",
-                "check": {
-                    "qemu-img": "qemu-img",
-                    "qemu-system-x86": "qemu-system-x86_64",
-                },
-            },
-            "debian": {
-                "install": "sudo apt install -y ",
-                "check": {
-                    "qemu-utils": "qemu-img",
-                    "qemu-system-x86": "qemu-system-x86_64",
-                },
-            },
-            "fedora": {
-                "install": "dnf install -y ",
-                "check": {
-                    "qemu-img": "qemu-img",
-                    "qemu": "qemu-system-x86_64",
-                },
-            },
-            "gentoo": {
-                "install": "sudo emerge ",
-                "check": {
-                    "app-emulation/qemu": "qemu-img",
-                    "app-emulation/qemu": "qemu-system-x86_64",
-                },
-            },
-            "suse": {
-                "install": " sudo zypper install -y ",
-                "check": {
-                    "qemu-img": "qemu-img",
-                    "qemu": "qemu-system-x86_64",
-                },
-            },
-        }
-        return os_commands.get(self.config.os_info or "", {})
+        return OS_COMMANDS.get(self.os_info or "", {})
 
     # --------------------------------------------------
     # OS Release Parser
@@ -253,7 +301,7 @@ class QemuDetector:
         check_dict = self.commands.get("check", {})
         missing_commands: List[str] = []
 
-        for pkg_name, executable in check_dict.items():
+        for executable, pkg_name in check_dict.items():
             exists, path = self._check_command(executable)
             if exists:
                 logger.debug(f"Found '{executable}' → {path}")
@@ -266,11 +314,15 @@ class QemuDetector:
             missing_commands = list(dict.fromkeys(missing_commands))
             install_cmd = self.commands.get("install", "")
 
-            logger.error(
-                "Missing commands detected. "
+            message = (
+                f"Missing commands detected. "
                 f"Try installing with:\n  {install_cmd}"
                 f"{' '.join(missing_commands)}"
             )
+
+            if self.commands.get("note") is not None:
+                message += f"\n\n{self.commands.get('note', '')}"
+            logger.error(message)
 
 
 # =====================================================
@@ -341,9 +393,7 @@ def main() -> None:
     logger.debug(f"Executable path: {sys.executable}")
 
     # --- Assemble Config -----------------------------------------------------
-    config = QemuConfig(
-        verbose=args.verbose,
-    )
+    config = QemuConfig(verbose=args.verbose,)
     logger.debug(config)
 
     # --- Execute -------------------------------------------------------------
