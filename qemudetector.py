@@ -14,13 +14,12 @@ from __future__ import annotations
 # Standard library imports
 # =====================================================
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Final, List, Optional, Tuple
 import argparse
 import platform
 import shutil
-import subprocess
 import sys
 
 # =====================================================
@@ -48,7 +47,6 @@ class OSType(Enum):
     RHEL = auto()
     SUSE = auto()
     WINDOWS = auto()
-    MACOS = auto()
     UNKNOWN = auto()
 
 
@@ -102,6 +100,13 @@ OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
             "qemu-system-x86_64": "qemu",
         },
     },
+    OSType.WINDOWS: {
+        "install": "choco install -y ",
+        "check": {
+            "qemu-img": "qemu",
+            "qemu-system-x86_64": "qemu",
+        },
+    },
 }
 
 
@@ -142,7 +147,8 @@ class QemuConfig:
 
 class QemuDetector:
     """
-    A class to detect the operating system and provide QEMU package installation
+    A class to detect the operating system and provide QEMU package
+    installation
     details.
     """
 
@@ -161,12 +167,16 @@ class QemuDetector:
         Args:
             config (QemuConfig): Configuration object.
         """
+        if sys.platform == "win32":
+            colorama.init(autoreset=True)
+
         self.config = config
         self._os_info: OSType = self._detect_os()
         self.commands: Dict[str, Any] = self._get_commands()
 
         logger.info(f"Detected OS: {self.os_info}")
-        logger.trace(self)
+        logger.trace(f"QemuDetector initialized: {self}")
+
         self.check_commands()
 
     def __str__(self):
@@ -217,7 +227,8 @@ class QemuDetector:
         Detect the host operating system.
 
         Returns:
-            str: The detected OS identifier (e.g., 'windows', 'ubuntu', 'debian').
+            str: The detected OS identifier (e.g., 'windows', 'ubuntu',
+                 'debian').
 
         Notes:
             - Uses `platform.system()` for base OS.
@@ -226,10 +237,9 @@ class QemuDetector:
         system: str = platform.system().lower()
 
         if system == "windows":
-            return OSType.WINDOWS
-
-        if system == "darwin":
-            return OSType.MACOS
+            for os_type in OSType:
+                if os_type.name.lower() == system:
+                    return os_type
 
         if system == "linux":
             os_release: Dict[str, str] = self._get_os_release()
@@ -400,10 +410,10 @@ def main() -> None:
 
     # --- Assemble Config -----------------------------------------------------
     config = QemuConfig(verbose=args.verbose,)
-    logger.debug(config)
+    logger.debug(f"Loaded config: {config}")
 
     # --- Execute -------------------------------------------------------------
-    detector = QemuDetector(config)
+    QemuDetector(config)
 
 
 # ====================================
