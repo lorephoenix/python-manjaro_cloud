@@ -30,12 +30,6 @@ import colorama
 
 
 # =====================================================
-# Constants
-# =====================================================
-LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
-
-
-# =====================================================
 # Enumerations
 # =====================================================
 class OSType(Enum):
@@ -51,8 +45,11 @@ class OSType(Enum):
 
 
 # =====================================================
-# OS Command Map
+# Constants
 # =====================================================
+LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
+
+# --- OS Command Map ----------------------------------------------------------
 OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
     OSType.ARCH: {
         "install": "sudo pacman -S --noconfirm ",
