@@ -45,6 +45,24 @@ class OSType(Enum):
 
 
 # =====================================================
+# Logging Helpers
+# =====================================================
+class LogBufferHandler:
+    """
+    Custom log handler to buffer log messages for later output.
+    Useful for debugging or logging in environments where real-time output is
+    not desired.
+    """
+
+    def __init__(self) -> None:
+        self.buffer: deque[str] = LOG_BUFFER
+
+    def __call__(self, message: str) -> None:
+        """Append log message to buffer."""
+        self.buffer.append(message)
+
+
+# =====================================================
 # Constants
 # =====================================================
 LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
@@ -105,24 +123,6 @@ OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
         },
     },
 }
-
-
-# =====================================================
-# Logging Helpers
-# =====================================================
-class LogBufferHandler:
-    """
-    Custom log handler to buffer log messages for later output.
-    Useful for debugging or logging in environments where real-time output is
-    not desired.
-    """
-
-    def __init__(self) -> None:
-        self.buffer: deque[str] = LOG_BUFFER
-
-    def __call__(self, message: str) -> None:
-        """Append log message to buffer."""
-        self.buffer.append(message)
 
 
 # =====================================================
