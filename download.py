@@ -96,7 +96,7 @@ class SelectiveBlankLineFormatter(argparse.ArgumentDefaultsHelpFormatter):
             and "--digest" in action.option_strings
         ):
             # Add a blank line before `--digest`
-            self._add_item(lambda: "\n", [])
+            self._add_item(lambda: "\nAdditional download options:\n", [])
         # Always call super() after modifying layout
         super().add_argument(action)
 
@@ -119,11 +119,37 @@ class LogBufferHandler:
         self.buffer.append(message)
 
 
+class LogSettings:
+    def __init__(self, verbosity: int = 4) -> None:
+        log_levels = {
+            0: "WARNING",
+            1: "INFO",
+            2: "DEBUG",
+            3: "TRACE",
+        }
+        level: str = log_levels.get(verbosity, "TRACE")
+
+        # Define log format (PEP 8-compliant line breaks)
+        log_format = (
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{file}::{function}</cyan> - "
+            "<level>{message}</level>"
+        )
+
+        logger.remove()
+        logger.add(sys.stderr, level=level, format=log_format)
+        if verbosity > 3:
+            log_buffer_handler = LogBufferHandler()
+            logger.add(log_buffer_handler, level="TRACE", format=log_format)
+
+
 # =====================================================
 # Data Model
 # =====================================================
 # slots=True Prevents dynamic attribute assignment, memory-efficient
 # frozen=True Makes the instances of the class immutable after creation.
+
 @dataclass(slots=True, frozen=True)
 class DownloadConfig:
     """
@@ -443,31 +469,6 @@ class Download:
 
 
 # =====================================================
-# Logging Configuration
-# =====================================================
-def configure_logging(verbosity: int) -> None:
-    """
-    Configure loguru logging levels dynamically based on verbosity.
-    """
-    log_levels = {0: "WARNING", 1: "INFO", 2: "DEBUG", 3: "TRACE"}
-    level = log_levels.get(verbosity, "TRACE")
-
-    log_format = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{file}::{function}</cyan> - "
-        "<level>{message}</level>"
-    )
-
-    logger.remove()
-    logger.add(sys.stderr, level=level, format=log_format)
-
-    # Optionally store logs in memory for later use (only when verbosity > 3)
-    if verbosity > 3:
-        logger.add(LogBufferHandler(), level="TRACE", format=log_format)
-
-
-# =====================================================
 # CLI Entrypoint
 # =====================================================
 def main() -> None:
@@ -545,7 +546,7 @@ value."""
     args = parser.parse_args()
 
     # --- Initialize Logging --------------------------------------------------
-    configure_logging(args.verbose)
+    LogSettings(args.verbose)
     logger.debug(f"Platform: {platform.system()} {platform.release()}")
     logger.debug(f"Python version: {platform.python_version()}")
     logger.debug(f"Executable path: {sys.executable}")
