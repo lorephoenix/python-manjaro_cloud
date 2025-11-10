@@ -122,8 +122,9 @@ class LogBufferHandler:
 # =====================================================
 # Data Model
 # =====================================================
-# Prevents dynamic attribute assignment, memory-efficient
-@dataclass(slots=True)
+# slots=True Prevents dynamic attribute assignment, memory-efficient
+# frozen=True Makes the instances of the class immutable after creation.
+@dataclass(slots=True, frozen=True)
 class DownloadConfig:
     """
     Configuration options for the Manjaro ISO download process.
@@ -179,6 +180,9 @@ class Download:
         """
         Initialize the Download class with configuration and session setup.
         """
+        if sys.platform == "win32":
+            colorama.init(autoreset=True)
+
         self.config = config
         self.session = requests.Session()
         self.session.verify = certifi.where() if config.verify_ssl else False
@@ -189,10 +193,7 @@ class Download:
         self._checksum_url: Optional[str] = None
         self._checksum_file: Optional[str] = None
 
-        if sys.platform == "win32":
-            colorama.init()
-
-        logger.trace(self)
+        logger.trace(f"Download initialized: {self}")
 
         # =====================================================
         # Directory Checks
@@ -222,6 +223,32 @@ class Download:
             an object.
         '''
         return str(self.__class__) + ": " + str(self.__dict__)
+
+    # P r o p e r t i e s
+    #
+    # A property is a special kind of class attribute that lets you control
+    # access to an internal variable — typically to encapsulate logic around
+    # getting, setting, or deleting its value
+
+    @property
+    def iso_image(self) -> Optional[str]:
+        """Get the ISO image filename."""
+        return self._iso_image
+
+    @iso_image.setter
+    def iso_image(self, value: Optional[str]) -> None:
+        """Set the ISO image filename."""
+        self._iso_image = value
+
+    @property
+    def iso_version(self) -> Optional[str]:
+        """Get the ISO version."""
+        return self._iso_version
+
+    @iso_version.setter
+    def iso_version(self, value: Optional[str]) -> None:
+        """Set the ISO version."""
+        self._iso_version = value
 
     # p r o t e c t e d   m e t h o d s
     #
@@ -414,38 +441,10 @@ class Download:
         else:
             raise ChecksumError("Checksum verification failed.")
 
-    # P r o p e r t i e s
-    #
-    # A property is a special kind of class attribute that lets you control
-    # access to an internal variable — typically to encapsulate logic around
-    # getting, setting, or deleting its value
-
-    @property
-    def iso_image(self) -> Optional[str]:
-        """Get the ISO image filename."""
-        return self._iso_image
-
-    @iso_image.setter
-    def iso_image(self, value: Optional[str]) -> None:
-        """Set the ISO image filename."""
-        self._iso_image = value
-
-    @property
-    def iso_version(self) -> Optional[str]:
-        """Get the ISO version."""
-        return self._iso_version
-
-    @iso_version.setter
-    def iso_version(self, value: Optional[str]) -> None:
-        """Set the ISO version."""
-        self._iso_version = value
-
 
 # =====================================================
 # Logging Configuration
 # =====================================================
-
-
 def configure_logging(verbosity: int) -> None:
     """
     Configure loguru logging levels dynamically based on verbosity.
