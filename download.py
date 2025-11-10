@@ -32,7 +32,6 @@ Usage:
 # =====================================================
 # Standard library imports
 # =====================================================
-from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final, Optional
@@ -52,12 +51,15 @@ import certifi  # SSL certificates for secure requests
 import colorama  # Cross-platform colored terminal text
 import requests  # HTTP requests
 
+# =====================================================
+# My imports
+# =====================================================
+from loghandler import LogSettings
 
 # =====================================================
 # Constants
 # =====================================================
 DEFAULT_TIMEOUT: Final[int] = 5
-LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
 MANJARO_URL: Final[str] = "https://manjaro.org/products/download/x86"
 
 
@@ -102,54 +104,10 @@ class SelectiveBlankLineFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 
 # =====================================================
-# Logging Helpers
-# =====================================================
-class LogBufferHandler:
-    """
-    Custom log handler to buffer log messages for later output.
-    Useful for debugging or logging in environments where real-time output is
-    not desired.
-    """
-
-    def __init__(self) -> None:
-        self.buffer: deque[str] = LOG_BUFFER
-
-    def __call__(self, message: str) -> None:
-        """Append log message to buffer."""
-        self.buffer.append(message)
-
-
-class LogSettings:
-    def __init__(self, verbosity: int = 4) -> None:
-        log_levels = {
-            0: "WARNING",
-            1: "INFO",
-            2: "DEBUG",
-            3: "TRACE",
-        }
-        level: str = log_levels.get(verbosity, "TRACE")
-
-        # Define log format (PEP 8-compliant line breaks)
-        log_format = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{file}::{function}</cyan> - "
-            "<level>{message}</level>"
-        )
-
-        logger.remove()
-        logger.add(sys.stderr, level=level, format=log_format)
-        if verbosity > 3:
-            log_buffer_handler = LogBufferHandler()
-            logger.add(log_buffer_handler, level="TRACE", format=log_format)
-
-
-# =====================================================
 # Data Model
 # =====================================================
 # slots=True Prevents dynamic attribute assignment, memory-efficient
 # frozen=True Makes the instances of the class immutable after creation.
-
 @dataclass(slots=True, frozen=True)
 class DownloadConfig:
     """
