@@ -62,6 +62,31 @@ class LogBufferHandler:
         self.buffer.append(message)
 
 
+class LogSettings:
+    def __init__(self, verbosity: int = 4) -> None:
+        log_levels = {
+            0: "WARNING",
+            1: "INFO",
+            2: "DEBUG",
+            3: "TRACE",
+        }
+        level: str = log_levels.get(verbosity, "TRACE")
+
+        # Define log format (PEP 8-compliant line breaks)
+        log_format = (
+            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
+            "<level>{level: <8}</level> | "
+            "<cyan>{file}::{function}</cyan> - "
+            "<level>{message}</level>"
+        )
+
+        logger.remove()
+        logger.add(sys.stderr, level=level, format=log_format)
+        if verbosity > 3:
+            log_buffer_handler = LogBufferHandler()
+            logger.add(log_buffer_handler, level="TRACE", format=log_format)
+
+
 # =====================================================
 # Constants
 # =====================================================
@@ -339,48 +364,6 @@ class QemuDetector:
 
 
 # =====================================================
-# Logging Configuration
-# =====================================================
-def configure_logging(verbosity: int = 4) -> None:
-    """
-    Configure logging level based on verbosity.
-    If verbosity > 3, buffer all logs and print them at the end.
-
-    Args:
-        verbosity (int): Verbosity level (0-3+).
-    """
-    log_levels = {
-        0: "WARNING",
-        1: "INFO",
-        2: "DEBUG",
-        3: "TRACE",
-    }
-    level: str = log_levels.get(verbosity, "TRACE")
-
-    # Define log format (PEP 8-compliant line breaks)
-    log_format = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{file}::{function}</cyan> - "
-        "<level>{message}</level>"
-    )
-
-    logger.remove()
-    logger.add(sys.stderr, level=level, format=log_format)
-    if verbosity > 3:
-        log_buffer_handler = LogBufferHandler()
-        logger.add(log_buffer_handler, level="TRACE", format=log_format)
-
-
-def print_buffered_logs() -> None:
-    """Print all buffered log messages."""
-    print("\n--- Buffered Logs ---")
-    for log in LOG_BUFFER:
-        print(log)
-    print("--- End of Buffered Logs ---\n")
-
-
-# =====================================================
 # CLI Entrypoint
 # =====================================================
 def main() -> None:
@@ -400,7 +383,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # --- Initialize Logging --------------------------------------------------
-    configure_logging(args.verbose)
+    LogSettings(args.verbose)
     logger.debug(f"Platform: {platform.system()} {platform.release()}")
     logger.debug(f"Python version: {platform.python_version()}")
     logger.debug(f"Executable path: {sys.executable}")
