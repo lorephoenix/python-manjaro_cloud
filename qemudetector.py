@@ -13,7 +13,6 @@ from __future__ import annotations
 # =====================================================
 # Standard library imports
 # =====================================================
-from collections import deque
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any, Dict, Final, List, Optional, Tuple
@@ -27,6 +26,11 @@ import sys
 # =====================================================
 from loguru import logger
 import colorama
+
+# =====================================================
+# My imports
+# =====================================================
+from loghandler import LogSettings
 
 
 # =====================================================
@@ -45,53 +49,8 @@ class OSType(Enum):
 
 
 # =====================================================
-# Logging Helpers
-# =====================================================
-class LogBufferHandler:
-    """
-    Custom log handler to buffer log messages for later output.
-    Useful for debugging or logging in environments where real-time output is
-    not desired.
-    """
-
-    def __init__(self) -> None:
-        self.buffer: deque[str] = LOG_BUFFER
-
-    def __call__(self, message: str) -> None:
-        """Append log message to buffer."""
-        self.buffer.append(message)
-
-
-class LogSettings:
-    def __init__(self, verbosity: int = 4) -> None:
-        log_levels = {
-            0: "WARNING",
-            1: "INFO",
-            2: "DEBUG",
-            3: "TRACE",
-        }
-        level: str = log_levels.get(verbosity, "TRACE")
-
-        # Define log format (PEP 8-compliant line breaks)
-        log_format = (
-            "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{file}::{function}</cyan> - "
-            "<level>{message}</level>"
-        )
-
-        logger.remove()
-        logger.add(sys.stderr, level=level, format=log_format)
-        if verbosity > 3:
-            log_buffer_handler = LogBufferHandler()
-            logger.add(log_buffer_handler, level="TRACE", format=log_format)
-
-
-# =====================================================
 # Constants
 # =====================================================
-LOG_BUFFER: deque[str] = deque(maxlen=1000)  # Buffer for log messages
-
 # --- OS Command Map ----------------------------------------------------------
 OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
     OSType.ARCH: {
@@ -142,9 +101,14 @@ OS_COMMANDS: Final[Dict[OSType, Dict[str, Dict[str, str]]]] = {
     },
     OSType.WINDOWS: {
         "install": "choco install -y ",
+        "note": (
+            "Don't forget to add into user environment PATH:\n  "
+            "setx PATH \"%PATH%;C:\\Program Files\\qemu\""
+        ),
         "check": {
             "qemu-img": "qemu",
             "qemu-system-x86_64": "qemu",
+            "ssh": "openssh"
         },
     },
 }
