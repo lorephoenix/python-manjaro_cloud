@@ -3,7 +3,7 @@
 #
 # File              : qemudetector.py
 # Date              : 2025-11-08 09:55:21
-# Last Modified time: 2025-11-09 17:27:14
+# Last Modified time: 2025-11-11 10:05:32
 #
 # Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
@@ -153,9 +153,6 @@ class QemuDetector:
         Args:
             config (QemuConfig): Configuration object.
         """
-        if sys.platform == "win32":
-            colorama.init(autoreset=True)
-
         self.config = config
         self._os_info: OSType = self._detect_os()
         self.commands: Dict[str, Any] = self._get_commands()
@@ -332,6 +329,9 @@ class QemuDetector:
 # =====================================================
 def main() -> None:
 
+    if sys.platform == "win32":
+        colorama.init(autoreset=True)
+        
     parser = argparse.ArgumentParser(
         description="QEMU Package Detector and Installer"
     )
