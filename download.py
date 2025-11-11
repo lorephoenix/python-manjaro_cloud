@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # File              : download.py
-# Date              : 2025-11-01 13:54:09
-# Last Modified time: 2025-11-02 14:11:18
+# Date              : 2025-11-09 17:22:21
+# Last Modified time: 2025-11-11 10:04:04
 #
 # Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
@@ -164,9 +164,6 @@ class Download:
         """
         Initialize the Download class with configuration and session setup.
         """
-        if sys.platform == "win32":
-            colorama.init(autoreset=True)
-
         self.config = config
         self.session = requests.Session()
         self.session.verify = certifi.where() if config.verify_ssl else False
@@ -431,6 +428,10 @@ class Download:
 # =====================================================
 def main() -> None:
     """Main function to parse arguments and initiate download."""
+
+    if sys.platform == "win32":
+        colorama.init(autoreset=True)
+
     parser = argparse.ArgumentParser(
         formatter_class=SelectiveBlankLineFormatter,
         description="Download the latest Manjaro ISO.",
