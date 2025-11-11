@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # File              : loghandler.py
-# Date              : 2025-11-10 15:05:38
-# Last Modified time: 2025-11-10 15:18:24
+# Date              : 2025-11-11 10:07:04
+# Last Modified time: 2025-11-11 10:07:11
 #
-# Author:           : Christophe Vermeren <christophe.vermeren@volvo.com>
+# Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
 # @License          : MIT License
 
 from __future__ import annotations
