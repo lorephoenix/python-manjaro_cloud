@@ -208,7 +208,7 @@ class LinuxKernelVersions:
         """
         def version_key(version_str: str) -> tuple:
             """
-            Convert a version string into a tuple of integers for proper 
+            Convert a version string into a tuple of integers for proper
             comparison.
 
             Args:
@@ -290,8 +290,8 @@ def main() -> None:
 
     # --- Execute -------------------------------------------------------------
     kernel_versions = LinuxKernelVersions(config)
-    print(kernel_versions.stable_version)
-    print(kernel_versions.longterm_version)
+    print(f"Kernel stable version: {kernel_versions.stable_version}")
+    print(f"Kernel longterm version: {kernel_versions.longterm_version}")
 
 
 # ====================================
