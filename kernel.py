@@ -290,8 +290,9 @@ def main() -> None:
 
     # --- Execute -------------------------------------------------------------
     kernel_versions = LinuxKernelVersions(config)
-    print(f"Kernel stable version: {kernel_versions.stable_version}")
-    print(f"Kernel longterm version: {kernel_versions.longterm_version}")
+    print(f"Latest kernel stable version: {kernel_versions.stable_version}")
+    print(
+        f"Latest kernel longterm version: {kernel_versions.longterm_version}")
 
 
 # ====================================
