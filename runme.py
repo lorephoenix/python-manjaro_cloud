@@ -58,10 +58,34 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="""Increase output verbosity. Use multiple times for more detail
+(e.g., -vvv)."""
+    )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force even if file exists."
+    )
+
+    parser.add_argument(
+        "--format",
+        type=str,
+        choices=["qcow2", "raw", "vmdk"],
+        default="qcow2",
+        help="Choose image format: 'qcow2', 'raw' or 'vmdk'"
+    )
+
+    parser.add_argument(
         "--kernel",
         type=str,
+        choices=["longterm", "stable"],
         default="longterm",
-        help="Longterm or stable"
+        help="Choose kernel type: 'longterm' or 'stable'"
     )
 
     parser.add_argument(
@@ -79,15 +103,6 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="""Increase output verbosity. Use multiple times for more detail
-(e.g., -vvv)."""
-    )
-
-    parser.add_argument(
         "--digest",
         type=str,
         default="sha256",
@@ -101,12 +116,6 @@ value."""
         type=str,
         default="kde",
         help="Desktop environment (e.g., xfce, kde, gnome)."
-    )
-
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force download even if the file exists."
     )
 
     parser.add_argument(
@@ -149,6 +158,16 @@ value."""
 
     # --- Execute -------------------------------------------------------------
     kernel_versions = LinuxKernelVersions(kernel_config)
+    if args.kernel.lower() == "longterm":
+        kernel_version = kernel_versions.longterm_version
+    else:
+        kernel_version = kernel_versions.stable_version
+
+    version_list = kernel_version.split(".")
+    kernel_package = "linux" + "".join(version_list[:2])
+    logger.debug(
+        f"Kernel version: {kernel_version} "
+        f"Kernel package: {kernel_package}")
 
     QemuDetector(qemu_config)
 
@@ -168,8 +187,19 @@ value."""
     formatted_date = current_date.strftime("%y%m%d")
     image_name = (
         f"manjaro-cloudimg-{downloader.iso_version}-{formatted_date}-"
-        f"{kernel_versions.longterm_version}.img"
+        f"{kernel_package}"
     )
+    # check is img, qcow2, vmdk and sha256 exist of image
+    # if exist then when using args.force remove files or overwritten files
+
+    file_path = Path(f"{args.target_dir}/{image_name}.{args.format}")
+    if file_path.exists():
+        if args.force:
+        
+        else:
+            logger.warning(f"Image file {file_path} already exist.")
+        sys.exit(0)
+    print(file_path)
 
 
 # ====================================
