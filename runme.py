@@ -1,15 +1,12 @@
-#!/usr/bin/env python3
-#
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# File                  :
-# Date                  : 2025-11-10 10:42:27
-# Last Modified by      : a446327
-# Last Modified time    : 2025-11-10 10:42:27
+# File              : runme.py
+# Date              : 2025-11-01 14:41:27
+# Last Modified time: 2025-11-13 19:48:15
 #
-# Author:               : Christophe Vermeren <christophe.vermeren@volvo.com>
-#
-
+# Author:           : Christophe Vermeren <lore.phoenix@gmail.com>
+# @License          : MIT License
 
 from __future__ import annotations
 
@@ -44,6 +41,32 @@ from qemudetector import QemuConfig, QemuDetector
 # Constants
 # =====================================================
 
+def ask_confirmation(prompt: str = "Do you want to continue? (y/N): ") -> bool:
+    """
+    Ask the user whether to proceed with an action.
+
+    Args:
+        prompt (str): The confirmation question (default = "Do you want to continue? (y/N): ").
+
+    Returns:
+        bool: True if the user confirms ('y' or 'Y'), False otherwise.
+    """
+    answer = input(prompt).strip().lower()
+    return answer == "y"
+
+def test(image_file: str, noconfirm: bool = False) -> bool:
+
+    if Path(image_file).exists:
+        logger.warning(f"Image file {image_file} already exist.")
+        if not noconfirm:
+            if ask_confirmation("Do you want to recreate the image? (y/N): "):
+
+                print("Proceeding with action...")
+                # Your action here, e.g. delete files
+            else:
+                print("Action canceled.")
+    return True
+
 
 # =====================================================
 # CLI Entrypoint
@@ -62,14 +85,8 @@ def main() -> None:
         "--verbose",
         action="count",
         default=0,
-        help="""Increase output verbosity. Use multiple times for more detail
+        help="""increase output verbosity. Use multiple times for more detail
 (e.g., -vvv)."""
-    )
-
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force even if file exists."
     )
 
     parser.add_argument(
@@ -77,7 +94,7 @@ def main() -> None:
         type=str,
         choices=["qcow2", "raw", "vmdk"],
         default="qcow2",
-        help="Choose image format: 'qcow2', 'raw' or 'vmdk'"
+        help="choose image format: 'qcow2', 'raw' or 'vmdk'"
     )
 
     parser.add_argument(
@@ -85,28 +102,34 @@ def main() -> None:
         type=str,
         choices=["longterm", "stable"],
         default="longterm",
-        help="Choose kernel type: 'longterm' or 'stable'"
+        help="choose kernel type: 'longterm' or 'stable'"
+    )
+
+    parser.add_argument(
+        "--noconfirm",
+        action="store_true",
+        help="do not ask for any confirmation"
     )
 
     parser.add_argument(
         "--size",
         type=str,
         default="3G",
-        help="Image size (e.g. 3G, 10G)"
+        help="image size (e.g. 3G, 10G)"
     )
 
     parser.add_argument(
         "--target-dir",
         type=Path,
         default=Path.cwd(),
-        help="Store download image into DIRECTORY."
+        help="store download image into DIRECTORY."
     )
 
     parser.add_argument(
         "--digest",
         type=str,
         default="sha256",
-        help="""A cryptographic hash value (e.g., MD5, SHA-1, or SHA-256) used
+        help="""a cryptographic hash value (e.g., MD5, SHA-1, or SHA-256) used
 to verify the integrity and authenticity of a fileSpecify a checksum hash
 value."""
     )
@@ -115,22 +138,29 @@ value."""
         "--environment",
         type=str,
         default="kde",
-        help="Desktop environment (e.g., xfce, kde, gnome)."
+        help="desktop environment (e.g., xfce, kde, gnome)."
+    )
+
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="force download even if the file exists."
     )
 
     parser.add_argument(
         "--minimal",
         action="store_true",
-        help="Download the minimal ISO image (smaller size, fewer packages)."
+        help="download the minimal ISO image (smaller size, fewer packages)."
     )
 
     parser.add_argument(
         "--skip-digest",
         action="store_true",
-        help="Skip checksum validation."
+        help="skip checksum validation."
     )
 
     args = parser.parse_args()
+
 
     # --- Initialize Logging --------------------------------------------------
     LogSettings(args.verbose)
@@ -185,21 +215,25 @@ value."""
 
     # Format as YYMMdd
     formatted_date = current_date.strftime("%y%m%d")
-    image_name = (
+    image_name: str = (
         f"manjaro-cloudimg-{downloader.iso_version}-{formatted_date}-"
         f"{kernel_package}"
     )
-    # check is img, qcow2, vmdk and sha256 exist of image
-    # if exist then when using args.force remove files or overwritten files
 
-    file_path = Path(f"{args.target_dir}/{image_name}.{args.format}")
-    if file_path.exists():
-        if args.force:
-        
-        else:
-            logger.warning(f"Image file {file_path} already exist.")
-        sys.exit(0)
-    print(file_path)
+    image_file: str = f"{image_name}.{args.format}"
+    image_digest: str = f"{image_name}.{args.format}.{args.digest}"
+
+    if test(image_file, args.noconfirm):
+        print("action")
+    else:
+        print("noaction")
+    
+
+    
+        # check is img, qcow2, vmdk and sha256 exist of image
+        # if exist then when using args.force remove files or overwritten files
+
+    sys.exit(0)
 
 
 # ====================================
@@ -225,3 +259,84 @@ manjaro-cloudimg-25.0.10-yymmdd-x86_64.img
 stable <> longterm (LTS)
 
 """
+'''
+# Retrieve the machine architecture (e.g., 'x86_64', 'arm64')
+    machine_arch = platform.machine()
+
+    distro, distro_like = detect_os()
+    has_qemu_img, qemu_img_path = check_command("qemu-img")
+    has_qemu_system, qemu_system_path = check_command("qemu-system-x86_64")
+
+    distro_lower = distro.lower()
+    distro_like_lower = (distro_like or "").lower()
+    
+Alpine
+    sudo apk add qemu qemu-img qemu-system-x86_64
+    qemu-img
+    qemu-system-x86_64
+
+Arch/Manjaro
+    sudo pacman -S --noconfirm qemu qemu-img 
+    qemu-img
+    qemu-system-x86_64
+
+debian/ubuntu
+    sudo apt install -y qemu-system qemu-utils
+    qemu-img
+    qemu-system-x86_64
+    
+fedora
+    sudo dnf install -y qemu qemu-img
+    qemu-img
+    qemu-system-x86_64
+
+gentoo
+    sudo emerge --ask app-emulation/qemu
+    qemu-img
+    qemu-system-x86_64
+    
+opensuse/suse
+    sudo zypper install -y qemu qemu-img
+    qemu-img
+    qemu-system-x86_64
+
+def check_command(command: str):
+    """Check if a command exists in PATH."""
+    path = shutil.which(command)
+    if path:
+        return True, path
+    return False, None
+
+
+def detect_os():
+    """Detect the OS name and distro family using ID and ID_LIKE."""
+    system = platform.system()
+
+    if system == "Windows":
+        return "Windows", None
+
+    if system == "Linux":
+        info = parse_os_release()
+        distro_id = info.get("ID", "").lower()
+        distro_like = info.get("ID_LIKE", "").lower()
+
+        if distro_id:
+            return distro_id.capitalize(), distro_like or None
+        else:
+            return "Linux (unknown distro)", None
+
+    return system, None
+
+
+def parse_os_release():
+    """Parse /etc/os-release into a dict if it exists."""
+    os_release = Path("/etc/os-release")
+    info = {}
+    if os_release.exists():
+        with open(os_release, "r", encoding="utf-8") as f:
+            for line in f:
+                if "=" in line:
+                    key, value = line.strip().split("=", 1)
+                    info[key] = value.strip('"')
+    return info
+'''
