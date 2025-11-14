@@ -13,12 +13,15 @@ from __future__ import annotations
 # =====================================================
 # Standard library imports
 # =====================================================
-from collections import deque
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
+from typing import Optional, Dict, Callable
 import argparse
 import platform
+import subprocess
 import sys
+
 
 # =====================================================
 # Third-party imports
@@ -40,37 +43,98 @@ from qemudetector import QemuConfig, QemuDetector
 # =====================================================
 # Constants
 # =====================================================
+# Supported formats and their default options
+FORMAT_OPTIONS: Dict[str, Dict[str, str]] = {
+    "qcow2": {
+        "preallocation": "metadata",
+        "compression_type": "zstd",
+    },
+    "vmdk": {
+        "subformat": "streamOptimized",
+        "compress": "",
+    },
+    "raw": {},
+}
 
-def ask_confirmation(prompt: str = "Do you want to continue? (y/N): ") -> bool:
+
+def validate_input(func: Callable) -> Callable:
     """
-    Ask the user whether to proceed with an action.
+    Decorator to validate input arguments for the run_qemu_img function.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if "format" in kwargs and kwargs["format"] not in FORMAT_OPTIONS:
+            raise ValueError(
+                f"Unsupported format: {kwargs['format']}. "
+                f"Use one of: {list(FORMAT_OPTIONS.keys())}"
+            )
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@validate_input
+def run_qemu_img(
+    image_file: str,
+    format: str = "qcow2",
+    size: str = "3G",
+    dry_run: bool = False,
+    **custom_options: Optional[Dict[str, str]],
+) -> None:
+    """
+    Create a QEMU disk image using qemu-img.
 
     Args:
-        prompt (str): The confirmation question (default = "Do you want to continue? (y/N): ").
-
-    Returns:
-        bool: True if the user confirms ('y' or 'Y'), False otherwise.
+        image_file: Path to the output disk image file.
+        format: Disk image format (e.g., "qcow2", "vmdk", "raw").
+        size: Size of the disk image (e.g., "3G", "10M").
+        dry_run: If True, only log the command without executing it.
+        custom_options: Custom options for the format
+                        (e.g., {"preallocation": "full"}).
     """
-    answer = input(prompt).strip().lower()
-    return answer == "y"
 
-def test(image_file: str, noconfirm: bool = False) -> bool:
+    # Merge default and custom options
+    options = FORMAT_OPTIONS[format].copy()
+    options.update(custom_options)
 
-    if Path(image_file).exists:
-        logger.warning(f"Image file {image_file} already exist.")
-        if not noconfirm:
-            if ask_confirmation("Do you want to recreate the image? (y/N): "):
+    # Build qemu-img command
+    cmd = ["qemu-img", "create", "-f", format, image_file, size]
 
-                print("Proceeding with action...")
-                # Your action here, e.g. delete files
-            else:
-                print("Action canceled.")
-    return True
+    # Add format-specific options
+    if options:
+        formatted_options = list(
+            f"{k}={v}" if v else k
+            for k, v in options.items()
+        )
+        cmd.extend(["-o", ",".join(formatted_options)])
+
+    # Dry run: log and return
+    if dry_run:
+        logger.info(f"[DRY RUN] Would run: {' '.join(cmd)}")
+        return
+
+    # Execute the command
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        logger.info(result.stdout)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to create disk image: {e.stderr}")
+        raise
+    except FileNotFoundError:
+        logger.error(
+            "qemu-img not found. Ensure QEMU is installed and in your PATH.")
+        raise
 
 
 # =====================================================
 # CLI Entrypoint
 # =====================================================
+
+
 def main() -> None:
 
     if sys.platform == "win32":
@@ -90,6 +154,12 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate the download process.",
+    )
+
+    parser.add_argument(
         "--format",
         type=str,
         choices=["qcow2", "raw", "vmdk"],
@@ -106,9 +176,9 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--noconfirm",
+        "--overwrite",
         action="store_true",
-        help="do not ask for any confirmation"
+        help="overwrite image if exist"
     )
 
     parser.add_argument(
@@ -161,7 +231,6 @@ value."""
 
     args = parser.parse_args()
 
-
     # --- Initialize Logging --------------------------------------------------
     LogSettings(args.verbose)
     logger.debug(f"Platform: {platform.system()} {platform.release()}")
@@ -172,6 +241,7 @@ value."""
     download_config = DownloadConfig(
         environment=args.environment,
         digest=args.digest,
+        dry_run=args.dry_run,
         force=args.force,
         minimal=args.minimal,
         skip_digest=args.skip_digest,
@@ -223,15 +293,10 @@ value."""
     image_file: str = f"{image_name}.{args.format}"
     image_digest: str = f"{image_name}.{args.format}.{args.digest}"
 
-    if test(image_file, args.noconfirm):
-        print("action")
+    if Path(f"{args.target_dir}/{image_file}").exists():
+        logger.warning(f"Image file {image_file} already exist.")
     else:
-        print("noaction")
-    
-
-    
-        # check is img, qcow2, vmdk and sha256 exist of image
-        # if exist then when using args.force remove files or overwritten files
+        run_qemu_img(image_file, args.format, args.size, args.dry_run)
 
     sys.exit(0)
 
@@ -249,13 +314,16 @@ if __name__ == "__main__":
         logger.exception(f"Unhandled exception: {exc}")
         sys.exit(1)
 """
+qemu-system-x86_64 -m 4096 -cpu kvm64 -smp 4 -drive file=manjaro-kde-25.0.10-minimal-251013-linux612.iso,media=cdrom,readonly=on -drive file=manjaro-cloudimg-25.0.10-251114-linux612.qcow2,format=qcow2  -boot d   -vga virtio -nic user,model=virtio-net-pci -name "Manjaro-live-with-cloudimg"
+qemu-system-x86_64 -m 4096 -cpu kvm64 -smp 4 -drive file=manjaro-kde-25.0.10-minimal-251013-linux612.iso,media=cdrom,readonly=on -drive file=manjaro-cloudimg-25.0.10-251114-linux612.qcow2,format=qcow2  -boot d   -nographic -serial mon:stdio -nic user,model=virtio-net-pci -name "Manjaro-live-with-cloudimg"
 
-qemu-img create -f raw  test.raw 3G
-qemu-img create -f qcow2 -o compression_type=zstd,preallocation=metadata test.qcow2 3G
-qemu-img create -f vmdk -o subformat=streamOptimized,compress test.vmdk 3G
-
+qemu-system-x86_64 -m 4096 -cpu kvm64 -smp 4 -drive file=manjaro-kde-25.0.10-minimal-251013-linux612.iso,media=cdrom,readonly=on -drive file=manjaro-cloudimg-25.0.10-251114-linux612.qcow2,format=qcow2  -boot d  -serial tcp:127.0.0.1:6600,server,nowait -nographic -nic user,model=virtio-net-pci -name "Manjaro-live-with-cloudimg"
 manjaro-cloudimg-25.0.10-yymmdd-x86_64.img
 
+qemu-system-x86_64 -m 4096 -cpu kvm64 -smp 4 -drive file=manjaro-kde-25.0.10-minimal-251013-linux612.iso,media=cdrom,readonly=on -nic user,hostfwd=tcp::2222-:22 -boot d  -serial file:serial.log -serial stdio
+
+
+qemu-system-x86_64 -m 4096 -cpu kvm64 -smp 4 -drive file=manjaro-kde-25.0.10-minimal-251013-linux612.iso,media=cdrom,readonly=on -nic user,hostfwd=tcp::2222-:22 -boot d -device virtio-serial-pci  -device virtserialport,chardev=scriptdev,name=org.qemu.script -chardev file,id=scriptdev,path=start_ssh.sh
 stable <> longterm (LTS)
 
 """
